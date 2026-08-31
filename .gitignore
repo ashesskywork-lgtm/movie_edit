@@ -1,0 +1,15 @@
+# エディタ
+.DS_Store
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+desktop.ini
+
+# 一時ファイル
+*.tmp
+*.log
+
+# Claude Code（個人環境固有のローカル権限設定、チームで共有しない）
+.claude/settings.local.json
