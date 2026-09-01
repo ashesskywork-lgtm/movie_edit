@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MP4動画編集ツール</title>
+<title>動画・音声編集ツール</title>
 <style>
   * { box-sizing: border-box; }
   html, body {
@@ -244,6 +244,10 @@
     color: #cfe4ff;
     white-space: nowrap;
   }
+  .badge-type {
+    background: #4a4d52;
+    color: #e4e4e4;
+  }
   .file-row-meta {
     font-size: 12px;
     color: #8a8d93;
@@ -304,17 +308,81 @@
     margin-top: 16px;
     max-width: 480px;
   }
+  #audioPanel {
+    margin-top: 20px;
+  }
+  #audioPanel section {
+    background: #26282b;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+  }
+  #audioPanel .toolbar-row[hidden] {
+    display: none;
+  }
+  #audioPanel .toolbar-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+  #audioPanel .button-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  #audioPanel input[type="number"] {
+    width: 90px;
+    background: #17181a;
+    color: #e4e4e4;
+    border: 1px solid #4a4d52;
+    border-radius: 4px;
+    padding: 4px 6px;
+  }
+  #audioPanel label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  #waveformScroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+    border: 1px solid #444;
+    background: #101112;
+  }
+  #waveformCanvas {
+    display: block;
+    cursor: crosshair;
+  }
+  #selectionLengthLabel, #audioDurationLabel, #playStatus {
+    color: #9fb8cc;
+  }
+  #volumeCompareRow {
+    align-items: flex-start;
+  }
+  .volume-compare-label {
+    font-size: 12px;
+    color: #9fb8cc;
+    margin-bottom: 4px;
+  }
+  #volumeBeforeCanvas, #volumeAfterCanvas {
+    display: block;
+    border: 1px solid #444;
+    background: #101112;
+  }
 </style>
 </head>
 <body>
 <div id="app">
-  <h1>MP4動画編集ツール（秒単位カット）</h1>
+  <h1>動画・音声編集ツール</h1>
 
   <div id="dropZone">
-    <p>MP4ファイルをドラッグ&amp;ドロップ、またはファイルを選択してください（複数選択可）。</p>
-    <p class="hint">対応形式：H.264映像 + AAC音声のMP4</p>
+    <p>MP4またはWAVファイルをドラッグ&amp;ドロップ、またはファイルを選択してください（複数選択可）。</p>
+    <p class="hint">対応形式：H.264映像 + AAC音声のMP4 / WAV</p>
     <button id="addFilesBtn" type="button">ファイルを選択</button>
-    <input id="fileInput" type="file" accept="video/mp4,.mp4" multiple hidden>
+    <input id="fileInput" type="file" accept="video/mp4,.mp4,.wav,audio/wav" multiple hidden>
   </div>
 
   <div id="errorBox" class="error" role="alert" hidden></div>
@@ -340,6 +408,95 @@
       <video id="mergeResultVideo" controls></video>
       <button id="mergeDownloadBtn" type="button" disabled>ダウンロード</button>
     </div>
+  </div>
+
+  <div id="audioPanel" hidden>
+    <h2>音声編集</h2>
+
+    <section id="audioWaveformSection">
+      <div class="toolbar-row">
+        <label>ズーム:
+          <input type="range" id="zoomSlider" min="10" max="2000" step="10" value="100">
+        </label>
+        <span id="audioDurationLabel"></span>
+      </div>
+      <div id="waveformScroll">
+        <canvas id="waveformCanvas" height="200" width="800"></canvas>
+      </div>
+    </section>
+
+    <section id="audioSelectionSection">
+      <div class="toolbar-row">
+        <label>開始(秒): <input type="number" id="audioStartInput" step="0.001" min="0" value="0.000"></label>
+        <label>終了(秒): <input type="number" id="audioEndInput" step="0.001" min="0" value="0.000"></label>
+        <span id="selectionLengthLabel">選択範囲: 0.000秒</span>
+      </div>
+      <div class="button-row">
+        <button id="keepBtn" type="button">選択範囲を残す</button>
+        <button id="deleteBtn" type="button">選択範囲を削除する</button>
+      </div>
+    </section>
+
+    <section id="audioVolumeSection">
+      <div class="toolbar-row">
+        <label>音量:
+          <input type="range" id="gainSlider" min="-24" max="24" step="0.1" value="0">
+          <input type="number" id="gainDbInput" step="0.1" min="-24" max="24" value="0">
+          dB
+        </label>
+      </div>
+      <div class="toolbar-row">
+        <span>適用範囲:</span>
+        <label><input type="radio" name="volumeTarget" id="targetSelection" value="selection">選択範囲</label>
+        <label><input type="radio" name="volumeTarget" id="targetAll" value="all" checked>全体</label>
+      </div>
+      <div class="button-row">
+        <button id="volumePreviewBtn" type="button">プレビュー再生</button>
+        <button id="applyGainBtn" type="button">適用</button>
+        <button id="normalizeBtn" type="button">ノーマライズ</button>
+      </div>
+      <div class="toolbar-row" id="volumeCompareRow" hidden>
+        <div>
+          <div class="volume-compare-label">適用前</div>
+          <canvas id="volumeBeforeCanvas" height="80" width="400"></canvas>
+        </div>
+        <div>
+          <div class="volume-compare-label">適用後</div>
+          <canvas id="volumeAfterCanvas" height="80" width="400"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <section id="audioEditSection">
+      <div class="toolbar-row">
+        <label>フェードイン(秒): <input type="number" id="fadeInInput" step="0.01" min="0" value="0"></label>
+        <label>フェードアウト(秒): <input type="number" id="fadeOutInput" step="0.01" min="0" value="0"></label>
+      </div>
+      <div class="button-row">
+        <button id="applyFadeBtn" type="button">フェードを適用</button>
+      </div>
+      <div class="toolbar-row">
+        <label>無音判定閾値(dB): <input type="number" id="silenceThresholdInput" step="1" value="-40"></label>
+      </div>
+      <div class="button-row">
+        <button id="trimSilenceBtn" type="button">前後の無音を除去</button>
+        <button id="reverseBtn" type="button">逆再生（リバース）に変換</button>
+      </div>
+    </section>
+
+    <section id="audioPlaybackSection">
+      <div class="button-row">
+        <button id="playSelectionBtn" type="button">選択範囲を再生</button>
+        <button id="playAllBtn" type="button">全体を再生</button>
+        <button id="stopBtn" type="button">■停止</button>
+        <label><input type="checkbox" id="loopCheckbox"> ループ再生</label>
+        <span id="playStatus"></span>
+      </div>
+    </section>
+
+    <section id="audioSaveSection">
+      <button id="audioDownloadBtn" type="button">このファイルを保存</button>
+    </section>
   </div>
 
   <div id="editorArea" hidden>
@@ -2324,6 +2481,7 @@ const addFilesBtn = document.getElementById('addFilesBtn');
 const errorBox = document.getElementById('errorBox');
 const fileListEl = document.getElementById('fileList');
 const editorArea = document.getElementById('editorArea');
+const audioPanel = document.getElementById('audioPanel');
 const fileInfo = document.getElementById('fileInfo');
 const sourceVideo = document.getElementById('sourceVideo');
 const resultPane = document.getElementById('resultPane');
@@ -2350,6 +2508,37 @@ const mergeResultPane = document.getElementById('mergeResultPane');
 const mergeResultVideo = document.getElementById('mergeResultVideo');
 const mergeDownloadBtn = document.getElementById('mergeDownloadBtn');
 
+// 音声編集パネル（WAV）のDOM参照。動画側と同名のidは衝突していたため
+// audioDurationLabel/audioStartInput/audioEndInput/audioDownloadBtnにリネームしている。
+const zoomSlider = document.getElementById('zoomSlider');
+const audioDurationLabel = document.getElementById('audioDurationLabel');
+const waveformCanvas = document.getElementById('waveformCanvas');
+const audioStartInput = document.getElementById('audioStartInput');
+const audioEndInput = document.getElementById('audioEndInput');
+const selectionLengthLabel = document.getElementById('selectionLengthLabel');
+const keepBtn = document.getElementById('keepBtn');
+const deleteBtn = document.getElementById('deleteBtn');
+const gainSlider = document.getElementById('gainSlider');
+const gainDbInput = document.getElementById('gainDbInput');
+const volumePreviewBtn = document.getElementById('volumePreviewBtn');
+const applyGainBtn = document.getElementById('applyGainBtn');
+const normalizeBtn = document.getElementById('normalizeBtn');
+const volumeCompareRow = document.getElementById('volumeCompareRow');
+const volumeBeforeCanvas = document.getElementById('volumeBeforeCanvas');
+const volumeAfterCanvas = document.getElementById('volumeAfterCanvas');
+const fadeInInput = document.getElementById('fadeInInput');
+const fadeOutInput = document.getElementById('fadeOutInput');
+const applyFadeBtn = document.getElementById('applyFadeBtn');
+const silenceThresholdInput = document.getElementById('silenceThresholdInput');
+const trimSilenceBtn = document.getElementById('trimSilenceBtn');
+const reverseBtn = document.getElementById('reverseBtn');
+const playSelectionBtn = document.getElementById('playSelectionBtn');
+const playAllBtn = document.getElementById('playAllBtn');
+const stopBtn = document.getElementById('stopBtn');
+const loopCheckbox = document.getElementById('loopCheckbox');
+const playStatusEl = document.getElementById('playStatus');
+const audioDownloadBtn = document.getElementById('audioDownloadBtn');
+
 // 読み込んだファイル・カット結果ファイル・結合結果ファイルを共有一覧で管理する。
 // 各ファイルの編集状態（元ArrayBuffer・トラック情報・カット範囲・カット結果等）は
 // ファイルごとに独立したエントリオブジェクトにまとめて保持する。
@@ -2369,6 +2558,22 @@ const mergeState = {
 
 let dragMode = null;
 let dragAnchorSec = 0;
+
+// 音声編集（WAV）用の状態。リアルタイム再生・波形描画用のAudioContextは
+// アプリ全体で1つだけ生成し使い回す（CLAUDE.md規約）。
+let audioContext = null;
+const usedDownloadNames = new Set();
+const playbackState = {
+  source: null,
+  isPlaying: false,
+  startTime: 0,
+  startOffset: 0,
+  endOffset: 0,
+  fileId: null,
+  loop: false,
+};
+let isDragSelecting = false;
+let audioDragAnchorSec = 0;
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -2393,6 +2598,7 @@ function createEntry(file, arrayBuffer, probe, derivedFrom, kind) {
     id: nextFileId++,
     file,
     baseName: file.name.replace(/\.[^/.]+$/, ''),
+    fileType: 'mp4',
     arrayBuffer,
     duration: probe.duration,
     videoTrack: probe.videoTrack,
@@ -2402,6 +2608,31 @@ function createEntry(file, arrayBuffer, probe, derivedFrom, kind) {
     sourceUrl: URL.createObjectURL(file),
     resultBlob: null,
     resultUrl: null,
+    derivedFrom: derivedFrom || null,
+    kind: kind || null,
+    isProcessing: false,
+    selectedForMerge: false,
+  };
+}
+
+// WAVファイルの一覧エントリを生成する。originalBuffer/currentBufferはデコード済みAudioBuffer。
+// currentBufferは各編集操作のたびに新しいAudioBufferへ置き換えられ、累積的に編集される
+// （originalBufferは非破壊のため常に保持し、Undo/Redoは今回もスコープ外）。
+// 生のArrayBufferはMP4側（extractSamples）でのみ必要なためWAVエントリには保持しない
+// （WAVのエンコードはダウンロード時にaudioBufferToWavBlobで都度行う）。
+function createWavEntry(file, audioBuffer, derivedFrom, kind) {
+  const defaultPxPerSecond = Math.max(10, Math.min(2000, Math.floor(900 / Math.max(audioBuffer.duration, 0.001))));
+  return {
+    id: nextFileId++,
+    file,
+    baseName: file.name.replace(/\.[^/.]+$/, ''),
+    fileType: 'wav',
+    originalBuffer: audioBuffer,
+    currentBuffer: audioBuffer,
+    selectionStart: 0,
+    selectionEnd: 0,
+    pxPerSecond: defaultPxPerSecond,
+    gainDb: 0,
     derivedFrom: derivedFrom || null,
     kind: kind || null,
     isProcessing: false,
@@ -2811,6 +3042,18 @@ function convertVideoFrames(frames, targetWidth, targetHeight, targetFrameRate, 
   const canvas = new OffscreenCanvas(targetWidth, targetHeight);
   const ctx = canvas.getContext('2d');
 
+  // アスペクト比を保ったまま中央配置し、余白は黒帯で埋める（レターボックス/ピラーボックス）
+  const srcWidth = frames[0].displayWidth || frames[0].codedWidth;
+  const srcHeight = frames[0].displayHeight || frames[0].codedHeight;
+  const scale = Math.min(targetWidth / srcWidth, targetHeight / srcHeight);
+  const drawWidth = srcWidth * scale;
+  const drawHeight = srcHeight * scale;
+  const offsetX = (targetWidth - drawWidth) / 2;
+  const offsetY = (targetHeight - drawHeight) / 2;
+
+  ctx.fillStyle = 'black';
+  ctx.fillRect(0, 0, targetWidth, targetHeight);
+
   const outFrames = [];
   let srcIndex = 0;
   for (let i = 0; i < outFrameCount; i++) {
@@ -2821,7 +3064,7 @@ function convertVideoFrames(frames, targetWidth, targetHeight, targetFrameRate, 
     ) {
       srcIndex++;
     }
-    ctx.drawImage(frames[srcIndex], 0, 0, targetWidth, targetHeight);
+    ctx.drawImage(frames[srcIndex], offsetX, offsetY, drawWidth, drawHeight);
     outFrames.push(new VideoFrame(canvas, {
       timestamp: timeOffsetUs + targetRelUs,
       duration: frameDurationUs,
@@ -2938,9 +3181,12 @@ function validateCutRange(entry) {
   return null;
 }
 
-// カット処理・結合処理は同時実行させない。どちらかが処理中かどうかをまとめて判定する。
+// 音声処理（WAVの読み込みデコード・結合）が実行中かどうかを表すフラグ。
+let audioProcessing = false;
+
+// カット処理・結合処理・音声処理は同時実行させない。いずれかが処理中かどうかをまとめて判定する。
 function isAnyProcessing() {
-  return (activeEntry && activeEntry.isProcessing) || mergeState.isProcessing;
+  return (activeEntry && activeEntry.isProcessing) || mergeState.isProcessing || audioProcessing;
 }
 
 function refreshGlobalBusyUi() {
@@ -2954,6 +3200,9 @@ function refreshGlobalBusyUi() {
   fileListEl.querySelectorAll('.merge-checkbox').forEach((checkbox) => {
     checkbox.disabled = busy;
   });
+  [keepBtn, deleteBtn, applyGainBtn, normalizeBtn, volumePreviewBtn, applyFadeBtn,
+    trimSilenceBtn, reverseBtn, playSelectionBtn, playAllBtn, stopBtn, audioDownloadBtn]
+    .forEach((btn) => { btn.disabled = busy; });
 }
 
 function setUiProcessing(isProcessing) {
@@ -3232,16 +3481,808 @@ async function runMerge() {
   }
 }
 
+/* ---------- 音声編集（WAV、音声ファイルエディタからの移植） ---------- */
+
+function getAudioContext() {
+  if (!audioContext) {
+    audioContext = new AudioContext();
+  }
+  return audioContext;
+}
+
+function getActiveWavEntry() {
+  return (activeEntry && activeEntry.fileType === 'wav') ? activeEntry : null;
+}
+
+function getVolumeTarget() {
+  return document.querySelector('input[name="volumeTarget"]:checked').value;
+}
+
+function cloneAudioBuffer(buffer) {
+  const ctx = getAudioContext();
+  const newBuffer = ctx.createBuffer(buffer.numberOfChannels, buffer.length, buffer.sampleRate);
+  for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+    newBuffer.getChannelData(ch).set(buffer.getChannelData(ch));
+  }
+  return newBuffer;
+}
+
+function downmixToMono(buffer) {
+  const numChannels = buffer.numberOfChannels;
+  const mono = new Float32Array(buffer.length);
+  for (let ch = 0; ch < numChannels; ch++) {
+    const data = buffer.getChannelData(ch);
+    for (let i = 0; i < data.length; i++) {
+      mono[i] += data[i] / numChannels;
+    }
+  }
+  return mono;
+}
+
+function mergeBuffers(buffers) {
+  const ctx = getAudioContext();
+  const sampleRate = buffers[0].sampleRate;
+  const channelCounts = buffers.map((b) => b.numberOfChannels);
+  const sameChannelCount = channelCounts.every((c) => c === channelCounts[0]);
+  const targetChannels = sameChannelCount ? channelCounts[0] : 1;
+
+  const totalLength = buffers.reduce((sum, b) => sum + b.length, 0);
+
+  const newBuffer = ctx.createBuffer(targetChannels, totalLength, sampleRate);
+  for (let ch = 0; ch < targetChannels; ch++) {
+    const destData = newBuffer.getChannelData(ch);
+    let offset = 0;
+    for (const srcBuffer of buffers) {
+      const srcData = (targetChannels === 1 && srcBuffer.numberOfChannels !== 1)
+        ? downmixToMono(srcBuffer)
+        : srcBuffer.getChannelData(ch);
+      destData.set(srcData, offset);
+      offset += srcBuffer.length;
+    }
+  }
+  return newBuffer;
+}
+
+function getMergedFileName(baseName) {
+  let candidate = baseName + '_merged.wav';
+  const existingNames = files.map((f) => f.file.name);
+  let counter = 1;
+  while (existingNames.indexOf(candidate) !== -1) {
+    candidate = baseName + '_merged_' + counter + '.wav';
+    counter++;
+  }
+  return candidate;
+}
+
+async function runWavMerge() {
+  const orderedEntries = mergeOrder.map((id) => files.find((f) => f.id === id)).filter(Boolean);
+  if (orderedEntries.length < 2) {
+    showError('結合するファイルを2本以上選択してください。');
+    return;
+  }
+  audioProcessing = true;
+  refreshGlobalBusyUi();
+  try {
+    const buffers = orderedEntries.map((e) => e.currentBuffer);
+    const mergedBuffer = mergeBuffers(buffers);
+    const mergedName = getMergedFileName(orderedEntries[0].baseName);
+    // ダウンロード時と異なり、結合直後のエントリはWAVエンコード/再デコードを経由させない
+    // （mergeBuffers()の戻り値をそのままoriginalBuffer/currentBufferに設定し、量子化ノイズの
+    // 混入や不要な往復処理を避ける。WAVエンコードは単一ファイル編集と同様、ダウンロード時のみ行う）。
+    const mergedFile = new File([], mergedName, { type: 'audio/wav' });
+    const derivedFromNames = orderedEntries.map((e) => e.file.name).join(' + ');
+    const entry = createWavEntry(mergedFile, mergedBuffer, derivedFromNames, 'merge');
+    files.push(entry);
+    renderFileList();
+  } catch (err) {
+    showError('音声結合処理中にエラーが発生しました: ' + (err && err.message ? err.message : err));
+  } finally {
+    audioProcessing = false;
+    refreshGlobalBusyUi();
+  }
+}
+
+/* ---- 波形描画 ---- */
+
+function drawWaveformEnvelope(ctx, buffer, pxPerSecond, width, height, selectionStart, selectionEnd) {
+  ctx.fillStyle = '#101112';
+  ctx.fillRect(0, 0, width, height);
+
+  const numChannels = buffer.numberOfChannels;
+  const channelDatas = [];
+  for (let ch = 0; ch < numChannels; ch++) {
+    channelDatas.push(buffer.getChannelData(ch));
+  }
+
+  const mid = height / 2;
+  ctx.strokeStyle = '#4da3ff';
+  ctx.beginPath();
+  for (let x = 0; x < width; x++) {
+    const startSample = Math.floor((x * buffer.sampleRate) / pxPerSecond);
+    const endSample = Math.min(buffer.length, Math.floor(((x + 1) * buffer.sampleRate) / pxPerSecond));
+    let min = 0;
+    let max = 0;
+    if (startSample < endSample) {
+      min = 1;
+      max = -1;
+      for (let s = startSample; s < endSample; s++) {
+        for (let c = 0; c < numChannels; c++) {
+          const v = channelDatas[c][s];
+          if (v < min) min = v;
+          if (v > max) max = v;
+        }
+      }
+    }
+    const yMin = mid - max * mid;
+    const yMax = mid - min * mid;
+    ctx.moveTo(x + 0.5, yMin);
+    ctx.lineTo(x + 0.5, yMax);
+  }
+  ctx.stroke();
+
+  ctx.strokeStyle = '#555';
+  ctx.beginPath();
+  ctx.moveTo(0, mid);
+  ctx.lineTo(width, mid);
+  ctx.stroke();
+
+  if (selectionEnd > selectionStart) {
+    const xStart = selectionStart * pxPerSecond;
+    const xEnd = selectionEnd * pxPerSecond;
+    ctx.fillStyle = 'rgba(255,255,0,0.2)';
+    ctx.fillRect(xStart, 0, xEnd - xStart, height);
+  }
+}
+
+function drawWaveform() {
+  const entry = getActiveWavEntry();
+  if (!entry) return;
+
+  const buffer = entry.currentBuffer;
+  const pxPerSecond = entry.pxPerSecond;
+  const width = Math.max(1, Math.ceil(buffer.duration * pxPerSecond));
+  const height = waveformCanvas.height;
+  waveformCanvas.width = width;
+
+  const ctx = waveformCanvas.getContext('2d');
+  drawWaveformEnvelope(ctx, buffer, pxPerSecond, width, height, entry.selectionStart, entry.selectionEnd);
+
+  if (playbackState.isPlaying && playbackState.fileId === entry.id) {
+    const elapsed = getAudioContext().currentTime - playbackState.startTime;
+    let pos = playbackState.startOffset + elapsed;
+    if (playbackState.loop) {
+      const loopDuration = playbackState.endOffset - playbackState.startOffset;
+      if (loopDuration > 0) {
+        pos = playbackState.startOffset + (elapsed % loopDuration);
+      }
+    }
+    if (pos <= playbackState.endOffset) {
+      const xPos = pos * pxPerSecond;
+      ctx.strokeStyle = '#ff4040';
+      ctx.beginPath();
+      ctx.moveTo(xPos, 0);
+      ctx.lineTo(xPos, height);
+      ctx.stroke();
+    }
+  }
+}
+
+function extractBufferRange(buffer, startSec, endSec) {
+  const sampleRate = buffer.sampleRate;
+  const startSample = Math.round(startSec * sampleRate);
+  const endSample = Math.min(buffer.length, Math.round(endSec * sampleRate));
+  const length = Math.max(1, endSample - startSample);
+  const newBuffer = getAudioContext().createBuffer(buffer.numberOfChannels, length, sampleRate);
+  for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+    const oldData = buffer.getChannelData(ch);
+    const newData = newBuffer.getChannelData(ch);
+    if (startSample < endSample) {
+      newData.set(oldData.subarray(startSample, endSample));
+    }
+  }
+  return newBuffer;
+}
+
+function applyGainToBuffer(buffer, factor) {
+  const newBuffer = cloneAudioBuffer(buffer);
+  for (let ch = 0; ch < newBuffer.numberOfChannels; ch++) {
+    const data = newBuffer.getChannelData(ch);
+    for (let i = 0; i < data.length; i++) {
+      data[i] = Math.max(-1, Math.min(1, data[i] * factor));
+    }
+  }
+  return newBuffer;
+}
+
+function drawVolumeComparison(entry, range, factor) {
+  const beforeBuffer = extractBufferRange(entry.currentBuffer, range.startSec, range.endSec);
+  const afterBuffer = applyGainToBuffer(beforeBuffer, factor);
+  const duration = Math.max(0.001, range.endSec - range.startSec);
+  const width = volumeBeforeCanvas.width;
+  const height = volumeBeforeCanvas.height;
+  const pxPerSecond = width / duration;
+  drawWaveformEnvelope(volumeBeforeCanvas.getContext('2d'), beforeBuffer, pxPerSecond, width, height, 0, 0);
+  drawWaveformEnvelope(volumeAfterCanvas.getContext('2d'), afterBuffer, pxPerSecond, width, height, 0, 0);
+  volumeCompareRow.hidden = false;
+}
+
+/* ---- 選択範囲 ---- */
+
+function syncSelectionUI() {
+  const entry = getActiveWavEntry();
+  if (!entry) return;
+  audioStartInput.value = entry.selectionStart.toFixed(3);
+  audioEndInput.value = entry.selectionEnd.toFixed(3);
+  selectionLengthLabel.textContent = '選択範囲: ' + (entry.selectionEnd - entry.selectionStart).toFixed(3) + '秒';
+  drawWaveform();
+}
+
+function secondsFromClientX(clientX, entry) {
+  const rect = waveformCanvas.getBoundingClientRect();
+  const x = clientX - rect.left;
+  const sec = x / entry.pxPerSecond;
+  return Math.max(0, Math.min(sec, entry.currentBuffer.duration));
+}
+
+waveformCanvas.addEventListener('mousedown', (e) => {
+  const entry = getActiveWavEntry();
+  if (!entry) return;
+  isDragSelecting = true;
+  audioDragAnchorSec = secondsFromClientX(e.clientX, entry);
+  entry.selectionStart = audioDragAnchorSec;
+  entry.selectionEnd = audioDragAnchorSec;
+  syncSelectionUI();
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (!isDragSelecting) return;
+  const entry = getActiveWavEntry();
+  if (!entry) return;
+  const sec = secondsFromClientX(e.clientX, entry);
+  entry.selectionStart = Math.min(audioDragAnchorSec, sec);
+  entry.selectionEnd = Math.max(audioDragAnchorSec, sec);
+  syncSelectionUI();
+});
+
+document.addEventListener('mouseup', () => {
+  isDragSelecting = false;
+});
+
+audioStartInput.addEventListener('change', () => {
+  const entry = getActiveWavEntry();
+  if (!entry) return;
+  let v = parseFloat(audioStartInput.value);
+  if (isNaN(v)) v = 0;
+  v = Math.max(0, Math.min(v, entry.currentBuffer.duration));
+  entry.selectionStart = v;
+  if (entry.selectionEnd < v) entry.selectionEnd = v;
+  syncSelectionUI();
+});
+
+audioEndInput.addEventListener('change', () => {
+  const entry = getActiveWavEntry();
+  if (!entry) return;
+  let v = parseFloat(audioEndInput.value);
+  if (isNaN(v)) v = 0;
+  v = Math.max(0, Math.min(v, entry.currentBuffer.duration));
+  entry.selectionEnd = v;
+  if (entry.selectionStart > v) entry.selectionStart = v;
+  syncSelectionUI();
+});
+
+zoomSlider.addEventListener('input', () => {
+  const entry = getActiveWavEntry();
+  if (!entry) return;
+  entry.pxPerSecond = parseInt(zoomSlider.value, 10);
+  drawWaveform();
+});
+
+keepBtn.addEventListener('click', () => {
+  stopPlayback();
+  const entry = getActiveWavEntry();
+  if (!entry) return;
+  if (entry.selectionEnd <= entry.selectionStart) {
+    alert('範囲を選択してください');
+    return;
+  }
+  const buffer = entry.currentBuffer;
+  const sampleRate = buffer.sampleRate;
+  const startSample = Math.round(entry.selectionStart * sampleRate);
+  const endSample = Math.min(buffer.length, Math.round(entry.selectionEnd * sampleRate));
+  const newLength = endSample - startSample;
+  if (newLength <= 0) {
+    alert('範囲を選択してください');
+    return;
+  }
+  const newBuffer = getAudioContext().createBuffer(buffer.numberOfChannels, newLength, sampleRate);
+  for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+    const oldData = buffer.getChannelData(ch);
+    const newData = newBuffer.getChannelData(ch);
+    newData.set(oldData.subarray(startSample, endSample));
+  }
+  entry.currentBuffer = newBuffer;
+  entry.selectionStart = 0;
+  entry.selectionEnd = 0;
+  renderAudioPanel();
+});
+
+deleteBtn.addEventListener('click', () => {
+  stopPlayback();
+  const entry = getActiveWavEntry();
+  if (!entry) return;
+  if (entry.selectionEnd <= entry.selectionStart) {
+    alert('範囲を選択してください');
+    return;
+  }
+  const buffer = entry.currentBuffer;
+  const sampleRate = buffer.sampleRate;
+  const startSample = Math.round(entry.selectionStart * sampleRate);
+  const endSample = Math.min(buffer.length, Math.round(entry.selectionEnd * sampleRate));
+  const beforeLength = startSample;
+  const afterLength = buffer.length - endSample;
+  const newLength = beforeLength + afterLength;
+  if (newLength <= 0) {
+    alert('すべての範囲は削除できません');
+    return;
+  }
+  const newBuffer = getAudioContext().createBuffer(buffer.numberOfChannels, newLength, sampleRate);
+  for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+    const oldData = buffer.getChannelData(ch);
+    const newData = newBuffer.getChannelData(ch);
+    newData.set(oldData.subarray(0, beforeLength), 0);
+    newData.set(oldData.subarray(endSample), beforeLength);
+  }
+  entry.currentBuffer = newBuffer;
+  entry.selectionStart = 0;
+  entry.selectionEnd = 0;
+  renderAudioPanel();
+});
+
+/* ---- 音量調整・ノーマライズ ---- */
+
+gainSlider.addEventListener('input', () => {
+  const entry = getActiveWavEntry();
+  gainDbInput.value = gainSlider.value;
+  if (entry) entry.gainDb = parseFloat(gainSlider.value);
+});
+
+gainDbInput.addEventListener('input', () => {
+  const v = parseFloat(gainDbInput.value);
+  if (isNaN(v)) return;
+  gainSlider.value = v;
+  const entry = getActiveWavEntry();
+  if (entry) entry.gainDb = v;
+});
+
+function resolveGainTargetRange(entry) {
+  const target = getVolumeTarget();
+  let startSec = 0;
+  let endSec = entry.currentBuffer.duration;
+  if (target === 'selection') {
+    if (entry.selectionEnd <= entry.selectionStart) {
+      return null;
+    }
+    startSec = entry.selectionStart;
+    endSec = entry.selectionEnd;
+  }
+  return { startSec, endSec };
+}
+
+applyGainBtn.addEventListener('click', () => {
+  const entry = getActiveWavEntry();
+  if (!entry) return;
+  const dB = entry.gainDb || 0;
+  if (dB === 0) {
+    alert('dBが0のため変更はありません');
+    return;
+  }
+  const range = resolveGainTargetRange(entry);
+  if (!range) {
+    alert('選択範囲がありません');
+    return;
+  }
+  const buffer = entry.currentBuffer;
+  const factor = Math.pow(10, dB / 20);
+  const startSample = Math.round(range.startSec * buffer.sampleRate);
+  const endSample = Math.min(buffer.length, Math.round(range.endSec * buffer.sampleRate));
+  const newBuffer = cloneAudioBuffer(buffer);
+  for (let ch = 0; ch < newBuffer.numberOfChannels; ch++) {
+    const data = newBuffer.getChannelData(ch);
+    for (let i = startSample; i < endSample; i++) {
+      data[i] = Math.max(-1, Math.min(1, data[i] * factor));
+    }
+  }
+  entry.currentBuffer = newBuffer;
+  entry.gainDb = 0;
+  gainSlider.value = 0;
+  gainDbInput.value = 0;
+  volumeCompareRow.hidden = true;
+  drawWaveform();
+});
+
+normalizeBtn.addEventListener('click', () => {
+  const entry = getActiveWavEntry();
+  if (!entry) return;
+  const range = resolveGainTargetRange(entry);
+  if (!range) {
+    alert('選択範囲がありません');
+    return;
+  }
+  const buffer = entry.currentBuffer;
+  const startSample = Math.round(range.startSec * buffer.sampleRate);
+  const endSample = Math.min(buffer.length, Math.round(range.endSec * buffer.sampleRate));
+  let peak = 0;
+  for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+    const srcData = buffer.getChannelData(ch);
+    for (let i = startSample; i < endSample; i++) {
+      const a = Math.abs(srcData[i]);
+      if (a > peak) peak = a;
+    }
+  }
+  if (peak === 0) {
+    alert('無音のためノーマライズできません');
+    return;
+  }
+  const factor = 1 / peak;
+  const newBuffer = cloneAudioBuffer(buffer);
+  for (let ch = 0; ch < newBuffer.numberOfChannels; ch++) {
+    const data = newBuffer.getChannelData(ch);
+    for (let i = startSample; i < endSample; i++) {
+      data[i] = Math.max(-1, Math.min(1, data[i] * factor));
+    }
+  }
+  entry.currentBuffer = newBuffer;
+  volumeCompareRow.hidden = true;
+  drawWaveform();
+});
+
+volumePreviewBtn.addEventListener('click', () => {
+  const entry = getActiveWavEntry();
+  if (!entry) return;
+  const range = resolveGainTargetRange(entry);
+  if (!range) {
+    alert('選択範囲がありません');
+    return;
+  }
+  const factor = Math.pow(10, (entry.gainDb || 0) / 20);
+  playRange(entry, range.startSec, range.endSec, factor);
+  drawVolumeComparison(entry, range, factor);
+});
+
+/* ---- フェード / 無音除去 / リバース ---- */
+
+function applyFadeToBuffer(buffer, fadeInSec, fadeOutSec) {
+  const newBuffer = cloneAudioBuffer(buffer);
+  const sampleRate = newBuffer.sampleRate;
+  const fadeInSamples = Math.round(fadeInSec * sampleRate);
+  const fadeOutSamples = Math.round(fadeOutSec * sampleRate);
+  for (let ch = 0; ch < newBuffer.numberOfChannels; ch++) {
+    const data = newBuffer.getChannelData(ch);
+    for (let i = 0; i < fadeInSamples && i < data.length; i++) {
+      data[i] *= i / fadeInSamples;
+    }
+    for (let j = 0; j < fadeOutSamples && j < data.length; j++) {
+      const idx = data.length - 1 - j;
+      data[idx] *= j / fadeOutSamples;
+    }
+  }
+  return newBuffer;
+}
+
+applyFadeBtn.addEventListener('click', () => {
+  const entry = getActiveWavEntry();
+  if (!entry) return;
+  const fadeInSec = Math.max(0, parseFloat(fadeInInput.value) || 0);
+  const fadeOutSec = Math.max(0, parseFloat(fadeOutInput.value) || 0);
+  if (fadeInSec === 0 && fadeOutSec === 0) {
+    alert('フェードイン/フェードアウトの秒数を入力してください');
+    return;
+  }
+  const duration = entry.currentBuffer.duration;
+  if (fadeInSec + fadeOutSec > duration) {
+    alert('フェード時間がファイルの長さを超えています');
+    return;
+  }
+  entry.currentBuffer = applyFadeToBuffer(entry.currentBuffer, fadeInSec, fadeOutSec);
+  drawWaveform();
+});
+
+function findSilenceTrimRange(buffer, thresholdDb) {
+  const threshold = Math.pow(10, thresholdDb / 20);
+  const numChannels = buffer.numberOfChannels;
+  const channelDatas = [];
+  for (let ch = 0; ch < numChannels; ch++) {
+    channelDatas.push(buffer.getChannelData(ch));
+  }
+  let startSample = 0;
+  while (startSample < buffer.length) {
+    let startIsSilent = true;
+    for (let c1 = 0; c1 < numChannels; c1++) {
+      if (Math.abs(channelDatas[c1][startSample]) >= threshold) {
+        startIsSilent = false;
+        break;
+      }
+    }
+    if (!startIsSilent) break;
+    startSample++;
+  }
+  let endSample = buffer.length;
+  while (endSample > startSample) {
+    const idx = endSample - 1;
+    let endIsSilent = true;
+    for (let c2 = 0; c2 < numChannels; c2++) {
+      if (Math.abs(channelDatas[c2][idx]) >= threshold) {
+        endIsSilent = false;
+        break;
+      }
+    }
+    if (!endIsSilent) break;
+    endSample--;
+  }
+  if (startSample >= endSample) return null;
+  return { startSample, endSample };
+}
+
+trimSilenceBtn.addEventListener('click', () => {
+  stopPlayback();
+  const entry = getActiveWavEntry();
+  if (!entry) return;
+  let thresholdDb = parseFloat(silenceThresholdInput.value);
+  if (isNaN(thresholdDb)) thresholdDb = -40;
+  const buffer = entry.currentBuffer;
+  const range = findSilenceTrimRange(buffer, thresholdDb);
+  if (!range) {
+    alert('全体が無音のためトリミングできません');
+    return;
+  }
+  const newBuffer = extractBufferRange(buffer, range.startSample / buffer.sampleRate, range.endSample / buffer.sampleRate);
+  entry.currentBuffer = newBuffer;
+  entry.selectionStart = 0;
+  entry.selectionEnd = 0;
+  renderAudioPanel();
+});
+
+function reverseBuffer(buffer) {
+  const newBuffer = cloneAudioBuffer(buffer);
+  for (let ch = 0; ch < newBuffer.numberOfChannels; ch++) {
+    newBuffer.getChannelData(ch).reverse();
+  }
+  return newBuffer;
+}
+
+reverseBtn.addEventListener('click', () => {
+  stopPlayback();
+  const entry = getActiveWavEntry();
+  if (!entry) return;
+  entry.currentBuffer = reverseBuffer(entry.currentBuffer);
+  entry.selectionStart = 0;
+  entry.selectionEnd = 0;
+  renderAudioPanel();
+});
+
+/* ---- 再生 ---- */
+
+function playRange(entry, startSec, endSec, gainFactor) {
+  stopPlayback();
+  const ctx = getAudioContext();
+  ctx.resume();
+  const source = ctx.createBufferSource();
+  source.buffer = entry.currentBuffer;
+  const gainNode = ctx.createGain();
+  gainNode.gain.value = gainFactor;
+  source.connect(gainNode).connect(ctx.destination);
+  const duration = Math.max(0, endSec - startSec);
+  const loopEnabled = loopCheckbox.checked && duration > 0;
+  if (loopEnabled) {
+    source.loop = true;
+    source.loopStart = startSec;
+    source.loopEnd = endSec;
+    source.start(0, startSec);
+  } else {
+    source.start(0, startSec, duration);
+  }
+
+  playbackState.source = source;
+  playbackState.isPlaying = true;
+  playbackState.startTime = ctx.currentTime;
+  playbackState.startOffset = startSec;
+  playbackState.endOffset = endSec;
+  playbackState.fileId = entry.id;
+  playbackState.loop = loopEnabled;
+
+  source.onended = () => {
+    if (playbackState.source === source) {
+      playbackState.isPlaying = false;
+      playbackState.source = null;
+      updatePlayStatus();
+      drawWaveform();
+    }
+  };
+
+  updatePlayStatus();
+  requestAnimationFrame(playheadLoop);
+}
+
+function playheadLoop() {
+  if (!playbackState.isPlaying) return;
+  drawWaveform();
+  requestAnimationFrame(playheadLoop);
+}
+
+function stopPlayback() {
+  if (playbackState.source) {
+    try {
+      playbackState.source.onended = null;
+      playbackState.source.stop();
+    } catch (e) {
+      // 既に停止済みの場合は無視
+    }
+  }
+  playbackState.source = null;
+  playbackState.isPlaying = false;
+  updatePlayStatus();
+  drawWaveform();
+}
+
+function updatePlayStatus() {
+  playStatusEl.textContent = playbackState.isPlaying ? '再生中...' : '';
+}
+
+playSelectionBtn.addEventListener('click', () => {
+  const entry = getActiveWavEntry();
+  if (!entry) return;
+  if (entry.selectionEnd <= entry.selectionStart) {
+    alert('範囲が選択されていません');
+    return;
+  }
+  playRange(entry, entry.selectionStart, entry.selectionEnd, 1);
+});
+
+playAllBtn.addEventListener('click', () => {
+  const entry = getActiveWavEntry();
+  if (!entry) return;
+  playRange(entry, 0, entry.currentBuffer.duration, 1);
+});
+
+stopBtn.addEventListener('click', () => {
+  stopPlayback();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.code !== 'Space') return;
+  const entry = getActiveWavEntry();
+  if (!entry) return;
+  const tag = document.activeElement ? document.activeElement.tagName : '';
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  e.preventDefault();
+  if (playbackState.isPlaying) {
+    stopPlayback();
+    return;
+  }
+  if (entry.selectionEnd > entry.selectionStart) {
+    playRange(entry, entry.selectionStart, entry.selectionEnd, 1);
+  } else {
+    playRange(entry, 0, entry.currentBuffer.duration, 1);
+  }
+});
+
+/* ---- WAVエンコード・ダウンロード ---- */
+
+function writeAsciiString(view, offset, str) {
+  for (let i = 0; i < str.length; i++) {
+    view.setUint8(offset + i, str.charCodeAt(i));
+  }
+}
+
+function audioBufferToWavBlob(buffer) {
+  const numChannels = buffer.numberOfChannels;
+  const sampleRate = buffer.sampleRate;
+  const numFrames = buffer.length;
+  const bytesPerSample = 2;
+  const blockAlign = numChannels * bytesPerSample;
+  const dataSize = numFrames * blockAlign;
+  const totalSize = 44 + dataSize;
+
+  const arrayBuffer = new ArrayBuffer(totalSize);
+  const view = new DataView(arrayBuffer);
+
+  writeAsciiString(view, 0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  writeAsciiString(view, 8, 'WAVE');
+  writeAsciiString(view, 12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * blockAlign, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, 16, true);
+  writeAsciiString(view, 36, 'data');
+  view.setUint32(40, dataSize, true);
+
+  const channelDatas = [];
+  for (let ch = 0; ch < numChannels; ch++) {
+    channelDatas.push(buffer.getChannelData(ch));
+  }
+
+  let offset = 44;
+  for (let i = 0; i < numFrames; i++) {
+    for (let c = 0; c < numChannels; c++) {
+      let sample = channelDatas[c][i];
+      sample = Math.max(-1, Math.min(1, sample));
+      const intSample = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+      view.setInt16(offset, intSample, true);
+      offset += 2;
+    }
+  }
+
+  return new Blob([arrayBuffer], { type: 'audio/wav' });
+}
+
+function getEditedFileName(baseName) {
+  let candidate = baseName + '_edited.wav';
+  let counter = 1;
+  while (usedDownloadNames.has(candidate)) {
+    candidate = baseName + '_edited_' + counter + '.wav';
+    counter++;
+  }
+  usedDownloadNames.add(candidate);
+  return candidate;
+}
+
+function downloadWavFile(entry) {
+  const blob = audioBufferToWavBlob(entry.currentBuffer);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = getEditedFileName(entry.baseName);
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+  }, 1000);
+}
+
+audioDownloadBtn.addEventListener('click', () => {
+  const entry = getActiveWavEntry();
+  if (!entry) return;
+  downloadWavFile(entry);
+});
+
 /* ---------- ファイル読み込み・ファイル一覧 ---------- */
+
+function getFileExtension(fileName) {
+  const match = /\.([^./\\]+)$/.exec(fileName || '');
+  return match ? match[1].toLowerCase() : '';
+}
 
 // 単一ファイルを読み込み・検証し、成功すればファイル一覧に追加する。
 // 失敗した場合は例外を投げる（呼び出し側でファイルごとにエラーを扱う）。
 async function loadSingleFile(file, derivedFrom, kind) {
+  const ext = getFileExtension(file.name);
+  if (ext !== 'mp4' && ext !== 'wav') {
+    throw new Error('対応していない形式です。.mp4または.wavファイルのみ対応しています。');
+  }
+
   let arrayBuffer;
   try {
     arrayBuffer = await file.arrayBuffer();
   } catch (err) {
     throw new Error('ファイルの読み込みに失敗しました: ' + (err.message || err));
+  }
+
+  if (ext === 'wav') {
+    let audioBuffer;
+    try {
+      audioBuffer = await getAudioContext().decodeAudioData(arrayBuffer);
+    } catch (err) {
+      throw new Error('WAVの読み込みに失敗しました（破損している可能性があります）: ' + (err.message || err));
+    }
+    const entry = createWavEntry(file, audioBuffer, derivedFrom, kind);
+    files.push(entry);
+    renderFileList();
+    return entry;
   }
 
   let probe;
@@ -3268,10 +4309,14 @@ async function loadFiles(fileList) {
   clearError();
   const errors = [];
   for (const file of list) {
+    const isWav = getFileExtension(file.name) === 'wav';
+    if (isWav) { audioProcessing = true; refreshGlobalBusyUi(); }
     try {
       await loadSingleFile(file, null);
     } catch (err) {
       errors.push(file.name + ': ' + (err.message || err));
+    } finally {
+      if (isWav) { audioProcessing = false; refreshGlobalBusyUi(); }
     }
   }
   if (errors.length > 0) showError(errors.join('\n'));
@@ -3312,6 +4357,10 @@ function renderFileList() {
     nameEl.className = 'file-name';
     nameEl.textContent = entry.file.name;
     main.appendChild(nameEl);
+    const typeBadge = document.createElement('span');
+    typeBadge.className = 'badge badge-type';
+    typeBadge.textContent = entry.fileType === 'wav' ? 'WAV' : 'MP4';
+    main.appendChild(typeBadge);
     if (entry.derivedFrom) {
       const badge = document.createElement('span');
       badge.className = 'badge';
@@ -3320,11 +4369,13 @@ function renderFileList() {
     }
     row.appendChild(main);
 
-    const meta = document.createElement('div');
-    meta.className = 'file-row-meta';
-    meta.textContent = formatSeconds(entry.duration) + '秒 ・ '
-      + entry.videoTrack.video.width + 'x' + entry.videoTrack.video.height;
-    row.appendChild(meta);
+    if (entry.fileType === 'mp4') {
+      const meta = document.createElement('div');
+      meta.className = 'file-row-meta';
+      meta.textContent = formatSeconds(entry.duration) + '秒 ・ '
+        + entry.videoTrack.video.width + 'x' + entry.videoTrack.video.height;
+      row.appendChild(meta);
+    }
 
     if (entry.derivedFrom) {
       const origin = document.createElement('div');
@@ -3425,8 +4476,9 @@ function renderMergeOrderList() {
 
 function renderEditorForActiveEntry() {
   const entry = activeEntry;
-  if (!entry) {
+  if (!entry || entry.fileType !== 'mp4') {
     editorArea.hidden = true;
+    renderAudioPanel();
     return;
   }
   sourceVideo.src = entry.sourceUrl;
@@ -3446,6 +4498,21 @@ function renderEditorForActiveEntry() {
 
   editorArea.hidden = false;
   updateRangeFromState();
+  renderAudioPanel();
+}
+
+// 音声編集パネルの表示切り替え・内容更新。
+function renderAudioPanel() {
+  stopPlayback();
+  const entry = getActiveWavEntry();
+  audioPanel.hidden = !entry;
+  if (!entry) return;
+  zoomSlider.value = entry.pxPerSecond;
+  audioDurationLabel.textContent = '全長: ' + entry.currentBuffer.duration.toFixed(3) + '秒';
+  gainSlider.value = entry.gainDb;
+  gainDbInput.value = entry.gainDb;
+  volumeCompareRow.hidden = true;
+  syncSelectionUI();
 }
 
 /* ---------- タイムラインUI（カット範囲選択） ---------- */
@@ -3543,7 +4610,9 @@ endInput.addEventListener('input', () => {
 addFilesBtn.addEventListener('click', () => fileInput.click());
 
 fileInput.addEventListener('change', () => {
-  const selected = fileInput.files;
+  // fileInput.filesはライブなFileListのため、参照を保持したままvalueをリセットすると
+  // 同じ参照先も空になってしまう。配列にコピーしてからリセットする。
+  const selected = Array.from(fileInput.files);
   fileInput.value = '';
   loadFiles(selected);
 });
@@ -3601,12 +4670,26 @@ mergeBtn.addEventListener('click', async () => {
     showError('カット処理中は結合を実行できません。');
     return;
   }
+  if (audioProcessing) {
+    showError('音声処理中は結合を実行できません。');
+    return;
+  }
   if (mergeOrder.length < 2) {
     showError('結合するファイルを2本以上選択してください。');
     return;
   }
+  const orderedEntries = mergeOrder.map((id) => files.find((f) => f.id === id)).filter(Boolean);
+  const types = new Set(orderedEntries.map((e) => e.fileType));
+  if (types.size > 1) {
+    showError('結合は同じ形式（WAVまたはMP4）同士のみ実行できます。');
+    return;
+  }
   clearError();
-  await runMerge();
+  if (types.has('wav')) {
+    await runWavMerge();
+  } else {
+    await runMerge();
+  }
 });
 
 mergeCancelBtn.addEventListener('click', () => {
